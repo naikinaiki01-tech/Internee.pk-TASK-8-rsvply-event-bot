@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RSVPly — Event RSVP Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2f1f2c;
+    --ink-soft: #6d5d69;
+    --paper: #faf4ee;
+    --paper-raised: #ffffff;
+    --line: #e6d9cd;
+    --accent: #a9793f;
+    --accent-bg: #f0e3cc;
+    --going: #4b6b4f;
+    --going-bg: #e1ebe1;
+    --maybe: #b3812f;
+    --maybe-bg: #f1e6c9;
+    --declined: #a34a2a;
+    --declined-bg: #f3ded2;
+    --focus: #2f6fb0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Work Sans", system-ui, -apple-system, sans-serif;
+    line-height: 1.45; -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #ede5ea; --ink-soft: #b3a6ae; --paper: #1c1620; --paper-raised: #251d2a;
+      --line: #3c2f3a; --accent: #d8b273; --accent-bg: #3a2f1c; --going: #8fc79f; --going-bg: #1f3324;
+      --maybe: #e0bb6e; --maybe-bg: #3a3320; --declined: #e2916a; --declined-bg: #3a271f; --focus: #7ab3e8;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #ede5ea; --ink-soft: #b3a6ae; --paper: #1c1620; --paper-raised: #251d2a;
+    --line: #3c2f3a; --accent: #d8b273; --accent-bg: #3a2f1c; --going: #8fc79f; --going-bg: #1f3324;
+    --maybe: #e0bb6e; --maybe-bg: #3a3320; --declined: #e2916a; --declined-bg: #3a271f; --focus: #7ab3e8;
+  }
+
+  h1, h2, h3 { font-family: "Cormorant Garamond", Georgia, serif; margin: 0; }
+  button, input, textarea { font-family: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .app { max-width: 1040px; margin: 0 auto; padding: 22px 18px 60px; }
+
+  header.top { padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+  header.top h1 { font-size: 2rem; font-weight: 600; }
+  header.top .sub { font-size: 0.88rem; color: var(--ink-soft); margin-top: 2px; }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 22px; align-items: start; }
+  @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } .board { order: -1; } }
+
+  .chat-panel {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px;
+    display: flex; flex-direction: column; height: 560px;
+  }
+  .chat-scroll { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .bubble { max-width: 78%; padding: 11px 14px; border-radius: 12px; font-size: 0.94rem; }
+  .bubble.bot { background: var(--accent-bg); color: var(--ink); align-self: flex-start; border-bottom-left-radius: 3px; }
+  .bubble.user { background: var(--ink); color: var(--paper); align-self: flex-end; border-bottom-right-radius: 3px; }
+  .bubble.system { align-self: center; background: transparent; color: var(--ink-soft); font-size: 0.8rem; text-align: center; max-width: 90%; }
+
+  .quick-replies { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 14px; }
+  .quick-replies button {
+    padding: 8px 16px; border-radius: 16px; border: 1px solid var(--line);
+    background: var(--paper); color: var(--ink); font-size: 0.86rem; cursor: pointer;
+  }
+  .quick-replies button:hover { border-color: var(--accent); }
+
+  .chat-input-row { display: flex; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .chat-input-row input {
+    flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--paper); color: var(--ink); font-size: 0.92rem;
+  }
+  .chat-input-row button {
+    padding: 10px 18px; border-radius: 6px; border: 1px solid var(--ink);
+    background: var(--ink); color: var(--paper); font-size: 0.88rem; cursor: pointer;
+  }
+  .chat-input-row.hidden { display: none; }
+
+  .email-card {
+    margin: 0 20px 16px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 8px;
+    background: var(--paper); font-size: 0.85rem;
+  }
+  .email-card .em-head { font-size: 0.72rem; color: var(--ink-soft); margin-bottom: 6px; }
+  .email-card .em-subject { font-weight: 600; margin-bottom: 6px; }
+  .email-card .em-sent { display: inline-block; margin-top: 8px; font-size: 0.74rem; color: var(--going); background: var(--going-bg); padding: 2px 9px; border-radius: 10px; }
+
+  .board .panel {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 16px;
+  }
+  .board .panel + .panel { margin-top: 16px; }
+  .board h2 { font-size: 1.1rem; margin-bottom: 12px; }
+  .event-card {
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 10px; font-size: 0.86rem;
+  }
+  .event-card .ename { font-weight: 600; margin-bottom: 2px; }
+  .event-card .edate { color: var(--ink-soft); font-size: 0.78rem; margin-bottom: 8px; }
+  .tally { display: flex; gap: 8px; font-size: 0.76rem; }
+  .tally span { padding: 2px 8px; border-radius: 10px; }
+  .tally .g { background: var(--going-bg); color: var(--going); }
+  .tally .m { background: var(--maybe-bg); color: var(--maybe); }
+  .tally .d { background: var(--declined-bg); color: var(--declined); }
+
+  .guest-list { max-height: 220px; overflow-y: auto; }
+  .guest-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .guest-row:last-child { border-bottom: none; }
+  .status-pill { padding: 1px 8px; border-radius: 10px; font-size: 0.72rem; }
+  .status-pill.g { background: var(--going-bg); color: var(--going); }
+  .status-pill.m { background: var(--maybe-bg); color: var(--maybe); }
+  .status-pill.d { background: var(--declined-bg); color: var(--declined); }
+
+  footer.note { margin-top: 28px; font-size: 0.78rem; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 14px; max-width: 72ch; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>RSVPly</h1>
+    <div class="sub">an event RSVP chatbot — one conversation, any event on the calendar</div>
+  </header>
+
+  <div class="layout">
+    <div class="chat-panel">
+      <div class="chat-scroll" id="chat-scroll"></div>
+      <div class="quick-replies" id="quick-replies"></div>
+      <div class="chat-input-row" id="text-row">
+        <input type="text" id="text-input" placeholder="Type your answer…">
+        <button id="text-send">Send</button>
+      </div>
+    </div>
+
+    <div class="board">
+      <div class="panel">
+        <h2>Events</h2>
+        <div id="event-list"></div>
+      </div>
+      <div class="panel">
+        <h2 id="guest-list-title">Responses</h2>
+        <div class="guest-list" id="guest-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="note">
+    Responses are stored in this browser's local storage, standing in for the database a live version would write to. Confirmation emails shown below are generated previews — wiring in real delivery means posting the same guest record to an email API (like SendGrid or a Google Apps Script webhook) instead of just rendering the preview card.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var EVENTS = [
+    {id: "hackathon", name: "Tech Society Hackathon Kickoff", date: "Oct 4, 6:00 PM", venue: "Innovation Lab, Block C"},
+    {id: "alumni", name: "Alumni Networking Night", date: "Oct 18, 7:00 PM", venue: "Main Auditorium"},
+    {id: "mixer", name: "Freshers' Welcome Mixer", date: "Nov 2, 5:00 PM", venue: "Courtyard Lawn"}
+  ];
+  var STORE_KEY = "rsvply:responses";
+
+  function el(id) { return document.getElementById(id); }
+  function loadAll() {
+    try { var raw = localStorage.getItem(STORE_KEY); return raw ? JSON.parse(raw) : []; }
+    catch (e) { return []; }
+  }
+  function saveAll(list) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  var responses = loadAll();
+  var selectedEventId = EVENTS[0].id;
+
+  // ---------------- Chat engine ----------------
+  var convo = { stage: "chooseEvent", draft: {} };
+
+  function addBubble(from, text) {
+    var scroll = el("chat-scroll");
+    var b = document.createElement("div");
+    b.className = "bubble " + from;
+    b.textContent = text;
+    scroll.appendChild(b);
+    scroll.scrollTop = scroll.scrollHeight;
+  }
+  function addSystem(text) {
+    var scroll = el("chat-scroll");
+    var b = document.createElement("div");
+    b.className = "bubble system";
+    b.textContent = text;
+    scroll.appendChild(b);
+    scroll.scrollTop = scroll.scrollHeight;
+  }
+  function addEmailCard(record) {
+    var scroll = el("chat-scroll");
+    var d = document.createElement("div");
+    d.className = "email-card";
+    var subject = record.response === "declined"
+      ? "We'll miss you at " + eventName(record.eventId)
+      : "You're confirmed: " + eventName(record.eventId);
+    var body = record.response === "declined"
+      ? "Hi " + record.name + ", thanks for letting us know you can't make " + eventName(record.eventId) + ". We've recorded your response."
+      : "Hi " + record.name + ", you're marked as " + (record.response === "going" ? "attending" : "a maybe for") + " " + eventName(record.eventId) + (record.guestCount ? " with " + record.guestCount + " guest(s)" : "") + ". See you " + eventDate(record.eventId) + " at " + eventVenue(record.eventId) + ".";
+    d.innerHTML =
+      "<div class='em-head'>Auto-generated confirmation email</div>" +
+      "<div class='em-subject'>" + subject + "</div>" +
+      "<div>" + body + "</div>" +
+      "<div class='em-sent'>Sent to " + record.name + "</div>";
+    scroll.appendChild(d);
+    scroll.scrollTop = scroll.scrollHeight;
+  }
+
+  function eventName(id) { var e = EVENTS.find(function(x){return x.id===id;}); return e ? e.name : id; }
+  function eventDate(id) { var e = EVENTS.find(function(x){return x.id===id;}); return e ? e.date : ""; }
+  function eventVenue(id) { var e = EVENTS.find(function(x){return x.id===id;}); return e ? e.venue : ""; }
+
+  function setQuickReplies(options) {
+    var wrap = el("quick-replies");
+    wrap.innerHTML = "";
+    options.forEach(function(opt) {
+      var btn = document.createElement("button");
+      btn.textContent = opt.label;
+      btn.addEventListener("click", function() { handleUserChoice(opt.value, opt.label); });
+      wrap.appendChild(btn);
+    });
+  }
+  function showTextInput(show) {
+    el("text-row").className = "chat-input-row" + (show ? "" : " hidden");
+  }
+
+  function handleUserChoice(value, label) {
+    addBubble("user", label);
+    setQuickReplies([]);
+    advance(value);
+  }
+  function handleUserText(text) {
+    if (!text.trim()) return;
+    addBubble("user", text.trim());
+    advance(text.trim());
+  }
+
+  el("text-send").addEventListener("click", function() {
+    var v = el("text-input").value;
+    el("text-input").value = "";
+    handleUserText(v);
+  });
+  el("text-input").addEventListener("keydown", function(ev) {
+    if (ev.key === "Enter") { el("text-send").click(); }
+  });
+
+  function beginConversation() {
+    convo = { stage: "chooseEvent", draft: {} };
+    el("chat-scroll").innerHTML = "";
+    addBubble("bot", "Hi! I can take your RSVP, or help you update one you already sent. Which would you like to do?");
+    setQuickReplies([
+      {label: "New RSVP", value: "new"},
+      {label: "Update an existing RSVP", value: "update"}
+    ]);
+    showTextInput(false);
+  }
+
+  function advance(input) {
+    var stage = convo.stage;
+
+    if (stage === "chooseEvent") {
+      if (input === "update") {
+        convo.stage = "updateEvent";
+        addBubble("bot", "Sure — which event was your RSVP for?");
+        setQuickReplies(EVENTS.map(function(e){ return {label: e.name, value: e.id}; }));
+        return;
+      }
+      convo.stage = "pickEvent";
+      addBubble("bot", "Great, let's get you on the list. Which event?");
+      setQuickReplies(EVENTS.map(function(e){ return {label: e.name, value: e.id}; }));
+      return;
+    }
+
+    if (stage === "pickEvent") {
+      convo.draft.eventId = input;
+      convo.stage = "name";
+      addBubble("bot", "What name should I put the RSVP under?");
+      setQuickReplies([]);
+      showTextInput(true);
+      return;
+    }
+
+    if (stage === "name") {
+      convo.draft.name = input;
+      convo.stage = "response";
+      addBubble("bot", "Thanks, " + input + ". Will you be attending " + eventName(convo.draft.eventId) + "?");
+      showTextInput(false);
+      setQuickReplies([
+        {label: "Yes, I'll be there", value: "going"},
+        {label: "Maybe", value: "maybe"},
+        {label: "Can't make it", value: "declined"}
+      ]);
+      return;
+    }
+
+    if (stage === "response") {
+      convo.draft.response = input;
+      if (input === "declined") {
+        finalizeRSVP();
+        return;
+      }
+      convo.stage = "guests";
+      addBubble("bot", "How many guests will you bring along, not counting yourself? (Enter 0 if it's just you.)");
+      setQuickReplies([]);
+      showTextInput(true);
+      return;
+    }
+
+    if (stage === "guests") {
+      var n = parseInt(input, 10);
+      convo.draft.guestCount = isNaN(n) ? 0 : n;
+      convo.stage = "notes";
+      addBubble("bot", "Any dietary preferences or notes for the organizers? Type 'none' to skip.");
+      return;
+    }
+
+    if (stage === "notes") {
+      convo.draft.notes = input.toLowerCase() === "none" ? "" : input;
+      finalizeRSVP();
+      return;
+    }
+
+    if (stage === "updateEvent") {
+      convo.draft.eventId = input;
+      convo.stage = "updateName";
+      addBubble("bot", "What name is the RSVP under?");
+      setQuickReplies([]);
+      showTextInput(true);
+      return;
+    }
+
+    if (stage === "updateName") {
+      var match = responses.find(function(r) {
+        return r.eventId === convo.draft.eventId && r.name.toLowerCase() === input.toLowerCase();
+      });
+      if (!match) {
+        addBubble("bot", "I couldn't find an RSVP under that name for " + eventName(convo.draft.eventId) + ". Want to submit a new one instead?");
+        setQuickReplies([{label: "Start a new RSVP", value: "new"}, {label: "Try another event", value: "update"}]);
+        convo.stage = "chooseEvent";
+        showTextInput(false);
+        return;
+      }
+      convo.draft = { eventId: match.eventId, name: match.name, editId: match.id };
+      convo.stage = "response";
+      addBubble("bot", "Found it. Currently marked as " + match.response + ". What's the updated response?");
+      setQuickReplies([
+        {label: "Yes, I'll be there", value: "going"},
+        {label: "Maybe", value: "maybe"},
+        {label: "Can't make it", value: "declined"}
+      ]);
+      showTextInput(false);
+      return;
+    }
+  }
+
+  function finalizeRSVP() {
+    var record = {
+      id: convo.draft.editId || Date.now(),
+      eventId: convo.draft.eventId,
+      name: convo.draft.name,
+      response: convo.draft.response,
+      guestCount: convo.draft.guestCount || 0,
+      notes: convo.draft.notes || ""
+    };
+    if (convo.draft.editId) {
+      responses = responses.map(function(r) { return r.id === record.id ? record : r; });
+      addBubble("bot", "Updated. Here's your new confirmation:");
+    } else {
+      responses.push(record);
+      addBubble("bot", "All set. Here's your confirmation:");
+    }
+    saveAll(responses);
+    addEmailCard(record);
+    addSystem("— conversation ended —");
+    setQuickReplies([{label: "RSVP to another event", value: "restart"}]);
+    showTextInput(false);
+    convo.stage = "done";
+    renderBoard();
+  }
+
+  // handle "restart" quick reply
+  var origHandle = handleUserChoice;
+  handleUserChoice = function(value, label) {
+    if (convo.stage === "done" && value === "restart") {
+      beginConversation();
+      return;
+    }
+    origHandle(value, label);
+  };
+
+  // ---------------- Event board ----------------
+  function renderEventList() {
+    var wrap = el("event-list");
+    wrap.innerHTML = "";
+    EVENTS.forEach(function(e) {
+      var list = responses.filter(function(r){ return r.eventId === e.id; });
+      var g = list.filter(function(r){return r.response==="going";}).length;
+      var m = list.filter(function(r){return r.response==="maybe";}).length;
+      var d = list.filter(function(r){return r.response==="declined";}).length;
+      var card = document.createElement("div");
+      card.className = "event-card";
+      card.style.cursor = "pointer";
+      card.style.borderColor = e.id === selectedEventId ? "var(--accent)" : "var(--line)";
+      card.innerHTML =
+        "<div class='ename'>" + e.name + "</div>" +
+        "<div class='edate'>" + e.date + " · " + e.venue + "</div>" +
+        "<div class='tally'><span class='g'>" + g + " going</span><span class='m'>" + m + " maybe</span><span class='d'>" + d + " declined</span></div>";
+      card.addEventListener("click", function() { selectedEventId = e.id; renderBoard(); });
+      wrap.appendChild(card);
+    });
+  }
+
+  function renderGuestList() {
+    el("guest-list-title").textContent = eventName(selectedEventId) + " — responses";
+    var list = responses.filter(function(r){ return r.eventId === selectedEventId; });
+    var wrap = el("guest-list");
+    if (list.length === 0) {
+      wrap.innerHTML = "<p style='color:var(--ink-soft); font-size:0.84rem;'>No responses yet for this event.</p>";
+      return;
+    }
+    wrap.innerHTML = list.map(function(r) {
+      var cls = r.response === "going" ? "g" : (r.response === "maybe" ? "m" : "d");
+      var label = r.response === "going" ? "Going" : (r.response === "maybe" ? "Maybe" : "Declined");
+      return "<div class='guest-row'><span>" + r.name + (r.guestCount ? " +" + r.guestCount : "") + "</span><span class='status-pill " + cls + "'>" + label + "</span></div>";
+    }).join("");
+  }
+
+  function renderBoard() {
+    renderEventList();
+    renderGuestList();
+  }
+
+  beginConversation();
+  renderBoard();
+})();
+</script>
+</body>
+</html>
